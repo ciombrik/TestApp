@@ -2,60 +2,52 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "3.26.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "3.0.1"
+      version = "~> 3.27"
     }
   }
-  required_version = ">= 0.14"
 
-  backend "remote" {
-    organization = "ACG-Terraform-Demos-Alex"
-
-    workspaces {
-      name = "gh-actions"
-    }
-  }
+  required_version = ">= 0.14.9"
 }
-
 
 provider "aws" {
-  region = "eu-west-1"
+  profile = "default"
+  region  = "eu-west-1"
 }
 
-
-
-resource "random_pet" "sg" {}
-
-resource "aws_instance" "web" {
+resource "aws_instance" "app_server" {
   ami                    = "ami-0d1bf5b68307103c2"
   instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.web-sg.id]
-
-  user_data = <<-EOF
-              #!/bin/bash
-              # Use this for your user data (script from top to bottom)
-              # install httpd (Linux 2 version)
-              yum update -y
-              yum install -y httpd
-              systemctl start httpd
-              systemctl enable httpd
-              echo "<h1>hello World from $(hostname -f)</h1>" > /var/www/html/index.html
-              EOF
+  vpc_security_group_ids = [aws_security_group.allow_http.id]
+  user_data              = <<-EOF
+                #!/bin/bash
+                # Use this for your user data (script from top to bottom)
+                # install httpd (Linux 2 version)
+                yum update -y
+                yum install -y httpd
+                systemctl start httpd
+                systemctl enable httpd
+                echo "<h1>hello World from $(hostname -f)</h1>" > /var/www/html/index.html
+  EOF
+  tags = {
+    Name = "ExampleAppServerInstance"
+  }
 }
+resource "aws_security_group" "allow_http" {
+  name        = "allow_http"
+  description = "Allow HTTP inbound traffic"
 
-resource "aws_security_group" "web-sg" {
-  name = "${random_pet.sg.id}-sg"
+
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    description = "HTTP from anywhere"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+
+  tags = {
+    Name = "ExampleAppServerInstance"
+  }
 }
 
-output "web-address" {
-  value = "${aws_instance.web.public_dns}:8080"
-}
